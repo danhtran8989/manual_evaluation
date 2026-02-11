@@ -16,7 +16,7 @@ OUTPUT_COLUMNS_INTERNAL = ["id", "input", "output", "score"]     # columns we wo
 DISPLAY_COLUMNS = ["ID", "Input", "Output (markdown)", "Score"]  # what user sees
 
 DEFAULT_PREFIX = "Danh"
-SAVE_PATH = Path("marks")               # ← folder where marked files will be saved
+SAVE_PATH = Path("evaluation_score")               # ← folder where marked files will be saved
 SAVE_PATH.mkdir(exist_ok=True)          # create folder if it doesn't exist
 
 # ────────────────────────────────────────────────
