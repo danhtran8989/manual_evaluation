@@ -12,16 +12,16 @@ INPUT_COLUMNS = {
     "output": ["output", "Output", "response", "answer", "content"]
 }
 
-OUTPUT_COLUMNS_INTERNAL = ["id", "input", "output", "score"]  # columns we work with internally
+OUTPUT_COLUMNS_INTERNAL = ["id", "input", "output", "score"]   # columns we work with internally
 DISPLAY_COLUMNS = ["ID", "Input", "Output (markdown)", "Score"]  # what user sees
 
-DEFAULT_PREFIX = "Danh"
-SAVE_PATH = Path("evaluation_score")  # ← folder where marked files will be saved
-SAVE_PATH.mkdir(exist_ok=True)  # create folder if it doesn't exist
+SAVE_PATH = Path("evaluation_score")
+SAVE_PATH.mkdir(exist_ok=True)
 
 DRIVE_PATH = Path("/content/drive/MyDrive/OSAS/osas_chat_bot/manual_test")
 
-
+# ────────────────────────────────────────────────
+# Helper functions
 # ────────────────────────────────────────────────
 def find_column(df: pd.DataFrame, possible_names: list[str]) -> str | None:
     """Find the first matching column name (case-insensitive)"""
@@ -39,7 +39,6 @@ def load_data(file_obj):
     try:
         df = pd.read_excel(file_obj.name, engine="openpyxl")
 
-        # Try to find required columns using flexible matching
         id_col    = find_column(df, INPUT_COLUMNS["id"])
         input_col = find_column(df, INPUT_COLUMNS["input"])
         output_col = find_column(df, INPUT_COLUMNS["output"])
@@ -85,8 +84,6 @@ def prepare_display_df(internal_df):
         return pd.DataFrame(columns=DISPLAY_COLUMNS)
 
     df = internal_df.copy()
-
-    # Rename to display names
     rename_map = {
         "id":     "ID",
         "input":  "Input",
@@ -104,15 +101,13 @@ def prepare_display_df(internal_df):
 
 
 def get_current_df_from_table(display_df, internal_df):
-    """
-    Merge updated scores from the displayed table back into the internal dataframe
-    """
+    """Merge updated scores from displayed table back into internal dataframe"""
     if display_df is None or internal_df is None:
         return internal_df
 
     updated_df = internal_df.copy()
 
-    # Rename display columns back to internal names
+    # Rename display columns back to internal
     display_df = display_df.rename(columns={
         "ID":                "id",
         "Input":             "input",
@@ -129,22 +124,36 @@ def get_current_df_from_table(display_df, internal_df):
         if pd.notna(row["id"]):
             score_dict[str(row["id"])] = row["score"] if pd.notna(row["score"]) else ""
 
-    # Apply scores to internal df (preserve existing if no new value)
+    # Apply scores (preserve existing if no new value)
     updated_df["score"] = updated_df["id"].astype(str).map(score_dict).combine_first(updated_df["score"])
-
     return updated_df
 
 
-def get_output_filename(tester, user, start_id, end_id):
-    tester   = (tester or "tester").strip() or "tester"
-    user     = (user or "user").strip() or "user"
-    user     = user.replace(" ", "_")
+def get_output_path(tester, user, model_name, start_id, end_id):
+    tester     = (tester or "tester").strip() or "tester"
+    user       = (user or "user").strip() or "user"
+    model_name = (model_name or "model").strip() or "unknown-model"
+
+    # Clean names for folders & files
+    tester     = tester.replace(" ", "_").replace("/", "-")
+    user       = user.replace(" ", "_").replace("/", "-")
+    model_name = model_name.replace(" ", "_").replace("/", "-")
+
     start_id = start_id or "unknown"
     end_id   = end_id   or "unknown"
-    return f"{tester}--{user}--{start_id}--{end_id}.xlsx"
+
+    # Build folder structure: tester / user / model
+    base_folder = DRIVE_PATH / tester / user / model_name
+    base_folder.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{start_id}--{end_id}.xlsx"
+    # You can also use more verbose name if preferred:
+    # filename = f"{tester}--{user}--{model_name}--{start_id}--{end_id}.xlsx"
+
+    return base_folder / filename
 
 
-def save_data(internal_df, tester, user, start_id, end_id):
+def save_data(internal_df, tester, user, model_name, start_id, end_id):
     if internal_df is None or internal_df.empty:
         return "No data to save", None
 
@@ -152,21 +161,19 @@ def save_data(internal_df, tester, user, start_id, end_id):
         df_to_save = internal_df[["id", "score"]].copy()
         df_to_save = df_to_save.rename(columns={"id": "ID"})
 
-        filename = get_output_filename(tester, user, start_id, end_id)
+        output_path = get_output_path(tester, user, model_name, start_id, end_id)
 
-        if DRIVE_PATH:
-            output_path = DRIVE_PATH / filename
-        else:
-            output_path = SAVE_PATH / filename
-
-        # Save (overwrites if exists)
         df_to_save.to_excel(
             output_path,
             index=False,
             engine="openpyxl"
         )
 
-        msg = f"Saved **{filename}** ({len(df_to_save)} rows — ID + score only)"
+        msg = (
+            f"Saved **{output_path.name}**\n"
+            f"({len(df_to_save)} rows — ID + score only)\n"
+            f"→ {output_path.parent}"
+        )
         return msg, str(output_path)
 
     except Exception as e:
@@ -174,12 +181,13 @@ def save_data(internal_df, tester, user, start_id, end_id):
 
 
 # ────────────────────────────────────────────────
-# Interface
+# Gradio Interface
 # ────────────────────────────────────────────────
 with gr.Blocks(title="Excel Score & Overwrite Tool") as demo:
     gr.Markdown("# Excel Scoring Tool")
     gr.Markdown(
-        "Upload .xlsx → edit **Score** column → save **ID + score only**\n\n"
+        "Upload .xlsx → edit **Score** column → save **ID + score only**  \n"
+        "Files are saved under: `tester / user / model / {start_id}--{end_id}.xlsx`"
     )
 
     with gr.Row():
@@ -190,8 +198,13 @@ with gr.Blocks(title="Excel Score & Overwrite Tool") as demo:
                 max_lines=1
             )
             user_input = gr.Textbox(
-                label="User / Subject",
+                label="User / Subject / Batch",
                 placeholder="e.g. userA, studentB, batch2025",
+                max_lines=1
+            )
+            model_input = gr.Textbox(
+                label="Model name",
+                placeholder="gpt-4o, claude-3.5-sonnet, gemma-2-27b, llama-3-70b, ...",
                 max_lines=1
             )
             file_input = gr.File(
@@ -199,12 +212,12 @@ with gr.Blocks(title="Excel Score & Overwrite Tool") as demo:
                 file_types=[".xlsx"],
                 type="filepath"
             )
+
             with gr.Row():
                 load_btn = gr.Button("Load file", variant="primary")
                 save_btn = gr.Button("Save", variant="secondary")
 
-            status = gr.Textbox(label="Status", interactive=False, lines=3)
-
+            status = gr.Textbox(label="Status", interactive=False, lines=4)
             download_file = gr.File(
                 label="Download result (ID + score only)",
                 file_types=[".xlsx"],
@@ -219,6 +232,7 @@ with gr.Blocks(title="Excel Score & Overwrite Tool") as demo:
                 datatype=["str", "str", "markdown", "str"],
                 interactive=True,
                 wrap=True,
+                height=700
             )
 
     # States
@@ -238,25 +252,24 @@ with gr.Blocks(title="Excel Score & Overwrite Tool") as demo:
     )
 
     # ── Save flow ───────────────────────────────────────
-    def save_flow(display_df, internal_df, tester, user, start_id, end_id):
+    def save_flow(display_df, internal_df, tester, user, model_name, start_id, end_id):
         updated_internal = get_current_df_from_table(display_df, internal_df)
-        msg, filepath = save_data(updated_internal, tester, user, start_id, end_id)
-
+        msg, filepath = save_data(updated_internal, tester, user, model_name, start_id, end_id)
         return (
-            updated_internal,                     # df_state
-            msg,                                  # status
-            filepath,                             # download_file value
-            prepare_display_df(updated_internal), # refresh table
+            updated_internal,                       # df_state
+            msg,                                    # status
+            filepath,                               # download_file value
+            prepare_display_df(updated_internal),   # refresh table
             gr.update(value=filepath, visible=bool(filepath))
         )
 
     save_btn.click(
         fn=save_flow,
-        inputs=[data_table, df_state, tester_input, user_input, start_id_state, end_id_state],
+        inputs=[data_table, df_state, tester_input, user_input, model_input, start_id_state, end_id_state],
         outputs=[df_state, status, download_file, data_table, download_file]
     )
 
-    # Ctrl + S support
+    # Ctrl + S to save
     demo.load(None, js="""
     () => {
         window.addEventListener('keydown', function(e) {
@@ -267,7 +280,6 @@ with gr.Blocks(title="Excel Score & Overwrite Tool") as demo:
         });
     }
     """)
-
 
 if __name__ == "__main__":
     demo.launch(
