@@ -209,9 +209,17 @@ with gr.Blocks(title="Excel Scoring Tool", css=custom_css) as demo:
     }
     """)
 if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--share", action="store_true",
+                        help="Launch with public share link (Gradio)")
+    
+    args = parser.parse_args()
+
     demo.launch(
         server_name="0.0.0.0",
         server_port=7860,
         debug=True,
-        share=False
+        share=args.share     # ← will be True only if --share was passed
     )
