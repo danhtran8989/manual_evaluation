@@ -7,9 +7,9 @@ from pathlib import Path
 # CONFIGURATION
 # ────────────────────────────────────────────────
 INPUT_COLUMNS = {
-    "id": ["ID", "id"],
+    "id": ["ID", "id", "prompt_id"],
     "input": ["input", "Input", "question", "prompt"],
-    "output": ["output", "Output", "response", "answer"]
+    "output": ["output", "Output", "response", "answer", "content"]
 }
 
 OUTPUT_COLUMNS_INTERNAL = ["id", "input", "output", "score"]     # columns we work with internally
@@ -18,6 +18,7 @@ DISPLAY_COLUMNS = ["ID", "Input", "Output (markdown)", "Score"]  # what user see
 DEFAULT_PREFIX = "Danh"
 SAVE_PATH = Path("evaluation_score")               # ← folder where marked files will be saved
 SAVE_PATH.mkdir(exist_ok=True)          # create folder if it doesn't exist
+DRIVE_PATH = "/content/drive/MyDrive/OSAS/osas_chat_bot/manual_test"
 
 # ────────────────────────────────────────────────
 def find_column(df: pd.DataFrame, possible_names: list[str]) -> str | None:
@@ -153,7 +154,10 @@ def save_data(internal_df, tester, user, start_id, end_id):
         df_to_save = df_to_save.rename(columns={"id": "ID"})
 
         filename = get_output_filename(tester, user, start_id, end_id)
-        output_path = SAVE_PATH / filename
+        if DRIVE_PATH:
+            output_path = DRIVE_PATH / filename
+        else:
+            output_path = SAVE_PATH / filename
 
         # Save (overwrites if exists)
         df_to_save.to_excel(
@@ -273,5 +277,5 @@ if __name__ == "__main__":
         server_name="0.0.0.0",
         server_port=7890,
         debug=True,
-        share=False
+        share=True
     )
