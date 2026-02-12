@@ -8,6 +8,7 @@
 ### Clone app
 ```bash
 git clone https://github.com/danhtran8989/manual_evaluation.git
+cd manual_evaluation
 ```
 
 ### Install dependencies
