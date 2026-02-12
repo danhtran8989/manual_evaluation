@@ -19,7 +19,7 @@ DEFAULT_PREFIX = "Danh"
 SAVE_PATH = Path("evaluation_score")  # ← folder where marked files will be saved
 SAVE_PATH.mkdir(exist_ok=True)  # create folder if it doesn't exist
 
-DRIVE_PATH = "/content/drive/MyDrive/OSAS/osas_chat_bot/manual_test"
+DRIVE_PATH = Path("/content/drive/MyDrive/OSAS/osas_chat_bot/manual_test")
 
 
 # ────────────────────────────────────────────────
