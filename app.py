@@ -131,7 +131,7 @@ with gr.Blocks(title="Excel Scoring Tool", css=custom_css) as demo:
         with gr.Column(scale=1):
             tester_input = gr.Textbox(label="Tester / Reviewer", placeholder="e.g. alexk, reviewer01", max_lines=1)
             user_input   = gr.Textbox(label="User / Subject / Batch", placeholder="e.g. userA, batch2025", max_lines=1)
-            model_input  = gr.Textbox(label="Model name", value="user-001", placeholder="gpt-4o, claude-3.5-sonnet, ...", max_lines=1)
+            model_input  = gr.Textbox(label="Model name", placeholder="gpt-4o, claude-3.5-sonnet, ...", max_lines=1)
             save_dir_input = gr.Textbox(label="Save Directory", value="/content/drive/MyDrive/OSAS/osas_chat_bot/manual_test", max_lines=1)
             file_input = gr.File(
                 label="Upload your .xlsx file",
