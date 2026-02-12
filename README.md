@@ -7,7 +7,7 @@
 
 ### Clone app
 ```bash
-git clonehttps://github.com/danhtran8989/manual_evaluation.git
+git clone https://github.com/danhtran8989/manual_evaluation.git
 ```
 
 ### Install dependencies
