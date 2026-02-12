@@ -12,13 +12,15 @@ INPUT_COLUMNS = {
     "output": ["output", "Output", "response", "answer", "content"]
 }
 
-OUTPUT_COLUMNS_INTERNAL = ["id", "input", "output", "score"]     # columns we work with internally
+OUTPUT_COLUMNS_INTERNAL = ["id", "input", "output", "score"]  # columns we work with internally
 DISPLAY_COLUMNS = ["ID", "Input", "Output (markdown)", "Score"]  # what user sees
 
 DEFAULT_PREFIX = "Danh"
-SAVE_PATH = Path("evaluation_score")               # ← folder where marked files will be saved
-SAVE_PATH.mkdir(exist_ok=True)          # create folder if it doesn't exist
+SAVE_PATH = Path("evaluation_score")  # ← folder where marked files will be saved
+SAVE_PATH.mkdir(exist_ok=True)  # create folder if it doesn't exist
+
 DRIVE_PATH = "/content/drive/MyDrive/OSAS/osas_chat_bot/manual_test"
+
 
 # ────────────────────────────────────────────────
 def find_column(df: pd.DataFrame, possible_names: list[str]) -> str | None:
@@ -58,9 +60,9 @@ def load_data(file_obj):
 
         df = df.rename(columns=rename_map)
 
-        # Add mark column if missing
-        if "mark" not in df.columns:
-            df["mark"] = ""
+        # Add score column if missing
+        if "score" not in df.columns:
+            df["score"] = ""
 
         # Keep only desired columns
         df = df[[c for c in OUTPUT_COLUMNS_INTERNAL if c in df.columns]]
@@ -69,7 +71,7 @@ def load_data(file_obj):
         end_id = "unknown"
         if "id" in df.columns and not df["id"].empty:
             start_id = str(df["id"].min())
-            end_id = str(df["id"].max())
+            end_id   = str(df["id"].max())
 
         filename = os.path.basename(file_obj.name)
         return df, f"Loaded {len(df)} rows from {filename}", start_id, end_id
@@ -86,10 +88,10 @@ def prepare_display_df(internal_df):
 
     # Rename to display names
     rename_map = {
-        "id": "ID",
-        "input": "Input",
+        "id":     "ID",
+        "input":  "Input",
         "output": "Output (markdown)",
-        "mark": "Mark"
+        "score":  "Score"
     }
     df = df.rename(columns=rename_map)
 
@@ -103,45 +105,42 @@ def prepare_display_df(internal_df):
 
 def get_current_df_from_table(display_df, internal_df):
     """
-    Merge updated marks from the displayed table back into the internal dataframe
+    Merge updated scores from the displayed table back into the internal dataframe
     """
     if display_df is None or internal_df is None:
         return internal_df
 
-    # Make a safe copy
     updated_df = internal_df.copy()
 
     # Rename display columns back to internal names
     display_df = display_df.rename(columns={
-        "ID": "id",
-        "Input": "input",
+        "ID":                "id",
+        "Input":             "input",
         "Output (markdown)": "output",
-        "Mark": "mark"
+        "Score":             "score"
     })
 
-    # We only care about id → mark mapping
-    if "id" not in display_df.columns or "mark" not in display_df.columns:
+    if "id" not in display_df.columns or "score" not in display_df.columns:
         return updated_df
 
     # Create mapping from displayed table
-    mark_dict = {}
+    score_dict = {}
     for _, row in display_df.iterrows():
         if pd.notna(row["id"]):
-            mark_dict[str(row["id"])] = row["mark"] if pd.notna(row["mark"]) else ""
+            score_dict[str(row["id"])] = row["score"] if pd.notna(row["score"]) else ""
 
-    # Apply marks to internal df (preserve existing if no new value)
-    updated_df["mark"] = updated_df["id"].astype(str).map(mark_dict).combine_first(updated_df["mark"])
+    # Apply scores to internal df (preserve existing if no new value)
+    updated_df["score"] = updated_df["id"].astype(str).map(score_dict).combine_first(updated_df["score"])
 
     return updated_df
 
 
 def get_output_filename(tester, user, start_id, end_id):
-    tester = (tester or "tester").strip() or "tester"
-    user   = (user   or "user").strip()   or "user"
-    user = user.replace(" ", "_")
+    tester   = (tester or "tester").strip() or "tester"
+    user     = (user or "user").strip() or "user"
+    user     = user.replace(" ", "_")
     start_id = start_id or "unknown"
     end_id   = end_id   or "unknown"
-
     return f"{tester}--{user}--{start_id}--{end_id}.xlsx"
 
 
@@ -150,10 +149,11 @@ def save_data(internal_df, tester, user, start_id, end_id):
         return "No data to save", None
 
     try:
-        df_to_save = internal_df[["id", "mark"]].copy()
+        df_to_save = internal_df[["id", "score"]].copy()
         df_to_save = df_to_save.rename(columns={"id": "ID"})
 
         filename = get_output_filename(tester, user, start_id, end_id)
+
         if DRIVE_PATH:
             output_path = DRIVE_PATH / filename
         else:
@@ -166,7 +166,7 @@ def save_data(internal_df, tester, user, start_id, end_id):
             engine="openpyxl"
         )
 
-        msg = f"Saved **{filename}** ({len(df_to_save)} rows — ID + mark only)"
+        msg = f"Saved **{filename}** ({len(df_to_save)} rows — ID + score only)"
         return msg, str(output_path)
 
     except Exception as e:
@@ -176,10 +176,10 @@ def save_data(internal_df, tester, user, start_id, end_id):
 # ────────────────────────────────────────────────
 # Interface
 # ────────────────────────────────────────────────
-with gr.Blocks(title="Excel Mark & Overwrite Tool") as demo:
-    gr.Markdown("# Excel Marking Tool")
+with gr.Blocks(title="Excel Score & Overwrite Tool") as demo:
+    gr.Markdown("# Excel Scoring Tool")
     gr.Markdown(
-        "Upload .xlsx → edit **Mark** column → save **ID + mark only**\n\n"
+        "Upload .xlsx → edit **Score** column → save **ID + score only**\n\n"
     )
 
     with gr.Row():
@@ -189,19 +189,16 @@ with gr.Blocks(title="Excel Mark & Overwrite Tool") as demo:
                 placeholder="your name or ID (e.g. alexk, reviewer01)",
                 max_lines=1
             )
-
             user_input = gr.Textbox(
                 label="User / Subject",
                 placeholder="e.g. userA, studentB, batch2025",
                 max_lines=1
             )
-
             file_input = gr.File(
                 label="Upload your .xlsx file",
                 file_types=[".xlsx"],
                 type="filepath"
             )
-
             with gr.Row():
                 load_btn = gr.Button("Load file", variant="primary")
                 save_btn = gr.Button("Save", variant="secondary")
@@ -209,7 +206,7 @@ with gr.Blocks(title="Excel Mark & Overwrite Tool") as demo:
             status = gr.Textbox(label="Status", interactive=False, lines=3)
 
             download_file = gr.File(
-                label="Download result (ID + mark only)",
+                label="Download result (ID + score only)",
                 file_types=[".xlsx"],
                 interactive=False,
                 visible=False
@@ -225,9 +222,9 @@ with gr.Blocks(title="Excel Mark & Overwrite Tool") as demo:
             )
 
     # States
-    df_state = gr.State(None)
+    df_state       = gr.State(None)
     start_id_state = gr.State(None)
-    end_id_state = gr.State(None)
+    end_id_state   = gr.State(None)
 
     # ── Load flow ───────────────────────────────────────
     load_btn.click(
@@ -246,10 +243,10 @@ with gr.Blocks(title="Excel Mark & Overwrite Tool") as demo:
         msg, filepath = save_data(updated_internal, tester, user, start_id, end_id)
 
         return (
-            updated_internal,                    # df_state
-            msg,                                 # status
-            filepath,                            # download_file value
-            prepare_display_df(updated_internal),# refresh table
+            updated_internal,                     # df_state
+            msg,                                  # status
+            filepath,                             # download_file value
+            prepare_display_df(updated_internal), # refresh table
             gr.update(value=filepath, visible=bool(filepath))
         )
 
@@ -277,5 +274,5 @@ if __name__ == "__main__":
         server_name="0.0.0.0",
         server_port=7890,
         debug=True,
-        share=True
+        share=False
     )
